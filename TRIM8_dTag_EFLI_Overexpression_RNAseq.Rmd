@@ -1,0 +1,147 @@
+---
+title: "TRIM8 dTag or EFLI Overexpression RNA-seq"
+author: "Neekesh V. Dharia"
+output: html_document
+---
+
+```{r warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(ggpubr)
+library(ggthemes)
+library(magrittr)
+library(data.table)
+library(DT)
+library(clusterProfiler)
+
+source('functions.R')
+source('load_data.R')
+
+msigdb <- load_msigdb()
+```
+
+
+```{r warning=FALSE, message=FALSE}
+gene_map <- read.table("input_files/gencode.v19_gtfgene_template.txt", sep = "\t", stringsAsFactors = F, header = T)
+rownames(gene_map) <- gene_map$Gene
+to_convert_gene_names2 <- read.table("input_files/lookup_Refseq_genes.txt", sep = "\t", stringsAsFactors = F, header = T)
+rownames(to_convert_gene_names2) <- to_convert_gene_names2$Gene
+
+# RNA-seq data available at GEO GSE150244
+TRIM8dT24 <- read.table("data/TRIM8_BN_DM_24h_DESeq2_DESeq2_LFC_apeglm.txt", sep = "\t", 
+                        stringsAsFactors = F, header = T, row.names = NULL) %>%
+  dplyr::rename(Gene = row.names) %>%
+  dplyr::mutate(Gene = ifelse(Gene %in% to_convert_gene_names2$Gene, to_convert_gene_names2[Gene, "Symbol_text"], Gene))
+
+iEF8 <- read.table("data/TRIM8_iEFdox_8h_DESeq2_DESeq2_LFC_apeglm.txt", sep = "\t", 
+                   stringsAsFactors = F, header = T, row.names = NULL) %>%
+  dplyr::rename(Gene.Entrez = row.names) %>%
+  dplyr::mutate(Gene = gsub("_.*", "", Gene.Entrez)) %>%
+  dplyr::mutate(Entrez = gsub(".*_", "", Gene.Entrez))
+```
+
+
+# MSigDB C2 enrichment for genes that go up after TRIM8 dTag 24h or inducible EWS-FLI overexpression 8h
+
+
+```{r warning=FALSE, message=FALSE, fig.width=6, fig.height=6}
+genes_selected <- as.vector(unlist(TRIM8dT24 %>% filter(padj < 0.05 & log2FoldChange > 0) %>% dplyr::select(Gene)))
+
+over_res <- enricher(gene = genes_selected, 
+                     universe = gene_map$Symbol,
+                     TERM2GENE = msigdb,
+                     pvalueCutoff = Inf, qvalueCutoff = Inf) 
+over_res@result %<>% group_by(GeneRatio) %>% 
+  dplyr::mutate(GeneRatio2 = eval(parse(text=GeneRatio)), 
+                BgRatio2 = eval(parse(text=BgRatio)), 
+                RatioDiff = GeneRatio2 - BgRatio2) %>%
+  dplyr::mutate(HighlightSig = ifelse(`p.adjust` < 1e-20, "SIG", "OTHER")) %>%
+  dplyr::mutate(HighlightSig = factor(HighlightSig, levels = c("OTHER", "SIG")))
+
+f2 <- ggplot(over_res@result %>% arrange(HighlightSig), aes(x=GeneRatio2, y=-log10(p.adjust), text=ID, color=HighlightSig)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("OTHER" = "black",
+                                "SIG" = "red"),
+                     name = "MSigDB C2") +
+  geom_hline(yintercept = 20, linetype="dashed") + 
+  geom_text_repel(data = over_res@result %>% filter(grepl("SIG",HighlightSig)), 
+                  mapping = aes(x=GeneRatio2, y=-log10(p.adjust), label=ID), nudge_y = -3) + 
+  ggtitle(paste0("Enriched genesets in MSigDB C2\nTRIM8dT 24h (", 
+                 length(genes_selected), 
+                 " genes)")) + 
+  xlab("GeneRatio") +
+  theme_Publication() + theme(legend.position = "none", legend.direction = "vertical", 
+                              legend.text = element_text(size = 8), panel.grid = element_blank()) 
+
+ggsave(f2, filename = "figures/RNAseq_UP_T8dT24_MSigDB_C2_GSEA.pdf", width = 6, height = 6)
+f2
+
+genes_selected <- as.vector(unlist(iEF8 %>% filter(padj < 0.05 & log2FoldChange > 0) %>% dplyr::select(Gene)))
+
+over_res <- enricher(gene = genes_selected, 
+                     universe = gene_map$Symbol,
+                     TERM2GENE = msigdb,
+                     pvalueCutoff = Inf, qvalueCutoff = Inf) 
+over_res@result %<>% group_by(GeneRatio) %>% 
+  dplyr::mutate(GeneRatio2 = eval(parse(text=GeneRatio)), 
+                BgRatio2 = eval(parse(text=BgRatio)), 
+                RatioDiff = GeneRatio2 - BgRatio2) %>%
+  dplyr::mutate(HighlightSig = ifelse(`p.adjust` < 1e-20, "SIG", "OTHER")) %>%
+  dplyr::mutate(HighlightSig = factor(HighlightSig, levels = c("OTHER", "SIG")))
+
+f2 <- ggplot(over_res@result %>% arrange(HighlightSig), aes(x=GeneRatio2, y=-log10(p.adjust), text=ID, color=HighlightSig)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("OTHER" = "black",
+                                "SIG" = "red"),
+                     name = "MSigDB C2") +
+  geom_hline(yintercept = 20, linetype="dashed") + 
+  geom_text_repel(data = over_res@result %>% filter(grepl("SIG",HighlightSig)), 
+                  mapping = aes(x=GeneRatio2, y=-log10(p.adjust), label=ID), nudge_y = -3) + 
+  ggtitle(paste0("Enriched genesets in MSigDB C2\niEF 8h (", 
+                 length(genes_selected), 
+                 " genes)")) + 
+  xlab("GeneRatio") +
+  theme_Publication() + theme(legend.position = "none", legend.direction = "vertical", 
+                              legend.text = element_text(size = 8), panel.grid = element_blank()) 
+
+ggsave(f2, filename = "figures/RNAseq_UP_iEF8_MSigDB_C2_GSEA.pdf", width = 6, height = 6)
+f2
+```
+
+
+# Volcano plots for expression changes after TRIM8 dTag 24h or inducible EWS-FLI overexpression 8h
+
+
+```{r warning=FALSE, message=FALSE, fig.width=6, fig.height=6}
+p <- ggplot(TRIM8dT24 %>% dplyr::filter(!is.na(log2FoldChange), !is.na(padj)), 
+            aes(x=log2FoldChange, y=-log10(padj), color=(padj < 0.05), text=Gene)) +
+  geom_point() +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  ggtitle("TRIM8dT 24h") +
+  coord_cartesian(clip = "off") +
+  scale_colour_manual(values = c("black", "red"), name = "DMSO mean TPM") +
+  theme_Publication() + theme(legend.position = "none", legend.direction = "vertical", 
+                              legend.text = element_text(size=6), legend.background = element_blank(), panel.grid = element_blank())
+p
+ggsave(p, filename = "figures/RNAseq_UP_TRIM8dT24.pdf", width = 6, height = 6)
+
+p <- ggplot(iEF8 %>% dplyr::filter(!is.na(log2FoldChange), !is.na(padj)), 
+            aes(x=log2FoldChange, y=-log10(padj), color=(padj < 0.05), text=Gene)) +
+  geom_point() +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  ggtitle("iEF 8h") +
+  coord_cartesian(clip = "off") +
+  scale_colour_manual(values = c("black", "red"), name = "DMSO mean TPM") +
+  theme_Publication() + theme(legend.position = "none", legend.direction = "vertical", 
+                              legend.text = element_text(size=6), legend.background = element_blank(), panel.grid = element_blank())
+p
+ggsave(p, filename = "figures/RNAseq_UP_iEF8.pdf", width = 6, height = 6)
+```
+
+
+## Session Info
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```

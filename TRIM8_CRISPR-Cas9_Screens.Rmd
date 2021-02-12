@@ -1,0 +1,216 @@
+---
+title: "TRIM8 CRISPR-Cas9 Screens"
+author: "Neekesh V. Dharia"
+output: html_document
+---
+
+```{r warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(ggpubr)
+library(ggthemes)
+library(magrittr)
+library(data.table)
+library(DT)
+library(matrixStats)
+
+source('load_data.R')
+source('functions.R')
+
+gecko_gene_effect <- load_gecko_gene_effect()
+gene_effect <- load_gene_effect()
+
+Ewing_lines <- mf %>% dplyr::filter(Type == "Ewing") %$% CCLE_name
+```
+
+
+# Volcano plots showing TRIM8 dependency enrichment in Ewing
+
+
+```{r warning=FALSE, message=FALSE, fig.width=5, fig.height=5}
+# Gecko
+context_matrix <- gecko_gene_effect[,1,drop=F]
+colnames(context_matrix) <- "Ewing"
+context_matrix[,1] <- 0
+context_matrix[rownames(context_matrix) %in% Ewing_lines,1] <- 1
+
+ttest_Ewing_v_all <- run_lm_stats_limma(gecko_gene_effect, context_matrix[,1])
+ttest_Ewing_v_all$Gene <- gsub("\\ .*","",ttest_Ewing_v_all$Gene)
+ttest_Ewing_v_all_gecko <- ttest_Ewing_v_all
+
+p <- ggplot(ttest_Ewing_v_all, aes(x = EffectSize, y = -log10(q.value))) + 
+  geom_point(size=2, pch=21, stroke = 0.25, fill = "black") + 
+  theme_light() + theme(panel.grid = element_blank(), panel.border = element_blank(), axis.line = element_line(size=0.5), 
+                        axis.ticks = element_line(size=0.5, color="black"), text = element_text(size = 8, color = "black"), 
+                        axis.text = element_text(size = 8, color = "black"), plot.title = element_text(size = 8, color = "black")) +
+  xlab("Effect Size") + ylab("-log10(q-value)") + 
+  geom_point(data = ttest_Ewing_v_all[ttest_Ewing_v_all$Gene == "TRIM8",,drop=F], 
+             aes(x = EffectSize, y = -log10(q.value)), fill = "red", size = 2,  pch=21, stroke = 0.25) + 
+  geom_text_repel(data = ttest_Ewing_v_all[ttest_Ewing_v_all$Gene == "TRIM8",,drop=F], 
+                   aes(x = EffectSize, y = -log10(q.value), label = Gene), 
+                   size=2, nudge_x = 0.1, nudge_y = 0.1) + 
+  geom_point(data = ttest_Ewing_v_all[ttest_Ewing_v_all$Gene == "FLI1",,drop=F], 
+             aes(x = EffectSize, y = -log10(q.value)), fill = "#00aeef", size = 2,  pch=21, stroke = 0.25) + 
+  geom_text_repel(data = ttest_Ewing_v_all[ttest_Ewing_v_all$Gene == "FLI1",,drop=F], 
+                   aes(x = EffectSize, y = -log10(q.value), label = Gene), 
+                   size=2, nudge_x = 0.1, nudge_y = 0.1) + 
+  ggtitle("GeCKO: Ewing v all others") + scale_x_continuous(breaks = round(seq(-0.9, 0.9, 0.3),2))
+
+p
+ggsave(plot = p, filename = "figures/TRIM8_GeCKO_Ewing_v_all_others_volcano.pdf", width = 2.5, height = 2.5, limitsize=FALSE, useDingbats=FALSE)
+
+# Avana 20q1 
+context_matrix <- gene_effect[,1,drop=F]
+colnames(context_matrix) <- "Ewing"
+context_matrix[,1] <- 0
+context_matrix[rownames(context_matrix) %in% Ewing_lines,1] <- 1
+
+ttest_Ewing_v_all <- cdsr::run_lm_stats_limma(gene_effect, context_matrix[,1])
+ttest_Ewing_v_all$Gene <- gsub("\\ .*","",ttest_Ewing_v_all$Gene)
+ttest_Ewing_v_all_avana <- ttest_Ewing_v_all
+
+p <- ggplot(ttest_Ewing_v_all, aes(x = EffectSize, y = -log10(q.value))) + 
+  geom_point(size=2, pch=21, stroke = 0.25, fill = "black") + 
+  theme_light() + theme(panel.grid = element_blank(), panel.border = element_blank(), axis.line = element_line(size=0.5), 
+                        axis.ticks = element_line(size=0.5, color="black"), text = element_text(size = 8, color = "black"), 
+                        axis.text = element_text(size = 8, color = "black"), plot.title = element_text(size = 8, color = "black")) +
+  xlab("Effect Size") + ylab("-log10(q-value)") + 
+  geom_point(data = ttest_Ewing_v_all[ttest_Ewing_v_all$Gene == "TRIM8",,drop=F], 
+             aes(x = EffectSize, y = -log10(q.value)), fill = "red", size = 2,  pch=21, stroke = 0.25) + 
+  geom_text_repel(data = ttest_Ewing_v_all[ttest_Ewing_v_all$Gene == "TRIM8",,drop=F], 
+                   aes(x = EffectSize, y = -log10(q.value), label = Gene), 
+                   size=2, nudge_x = 0.1, nudge_y = 0.1) + 
+  geom_point(data = ttest_Ewing_v_all[ttest_Ewing_v_all$Gene == "FLI1",,drop=F], 
+             aes(x = EffectSize, y = -log10(q.value)), fill = "#00aeef", size = 2,  pch=21, stroke = 0.25) + 
+  geom_text_repel(data = ttest_Ewing_v_all[ttest_Ewing_v_all$Gene == "FLI1",,drop=F], 
+                   aes(x = EffectSize, y = -log10(q.value), label = Gene), 
+                   size=2, nudge_x = -0.1, nudge_y = 0.1) + 
+  ggtitle("Avana 20q1 Public: Ewing v all others") + scale_x_continuous(breaks = round(seq(-0.9, 0.9, 0.3),2))
+
+p
+ggsave(plot = p, filename = "figures/TRIM8_Avana20q1_Ewing_v_all_others_volcano.pdf", width = 2.5, height = 2.5, limitsize=FALSE, useDingbats=FALSE)
+```
+
+  
+# Individual TRIM8 dependency plots for each dataset
+
+
+```{r warning=FALSE, message=FALSE, fig.width=7.5, fig.height=4.5}
+EFLI <- c("A673_BONE","EW8_BONE","EWS502_BONE","MHHES1_BONE","RDES_BONE","SKES1_BONE","SKNEP1_BONE","SKPNDW_BONE","TC71_BONE","TC32_BONE","SKNMC_BONE","TC138_BONE", "ES4_BONE", "ES5_BONE", "ES8_BONE", "EW1_BONE", "EW16_BONE", "EW22_BONE", "EW7_BONE", "MCIXC_BONE")
+EERG <- c("CADOES1_BONE","COGE352_BONE","TC106_BONE")
+EFEV <- c("TC205_BONE")
+
+GenePlot <- function(gene_to_plot, dep_mat, rank_mat, cell_line_list1 = NULL, cell_line_list2 = NULL, cell_line_list3 = NULL, cell_line_list4 = NULL, cell_line_list5 = NULL, title1 = NULL, title2 = NULL, title3 = NULL, title4 = NULL, title5 = NULL, plottitle = NULL, plot_filename = "01", plot_width = 3.75, plot_height=2.25, scale_factor=0.2, point_cols=c(rgb(0.745098,0.745098,0.745098,0.2), "red", "black", "#00aeef", "purple"), point_cols_2=c(rgb(0,0,0,0.2), "black", "black", "black", "black"), y_label=" scaled rank", legend_pos=c(0.01,1.05)) {
+  #modified to make other cancers transparent
+    library(ggplot2)
+    library(tidyr)
+    library(ggrepel)
+    gene_to_plot <- colnames(dep_mat)[grepl(paste0("^",gene_to_plot), colnames(dep_mat))][1]
+    cat(gene_to_plot)
+    Cell_Line <- as.matrix(rownames(dep_mat))
+    
+    OrderToPlot <- matrix(NA, nrow=length(dep_mat[,gene_to_plot]), ncol=1)
+    OrderToPlot[match(cell_line_list1, Cell_Line)] <- 1
+    OrderToPlot[match(cell_line_list2, Cell_Line)] <- 2
+    OrderToPlot[match(cell_line_list3, Cell_Line)] <- 3
+    OrderToPlot[match(cell_line_list4, Cell_Line)] <- 4
+    OrderToPlot[match(cell_line_list5, Cell_Line)] <- 5
+    OrderToPlot <- order(OrderToPlot)
+    
+    Lineage <- matrix("Other cell lines", nrow=length(dep_mat[,gene_to_plot]), ncol=1)
+    Lineage[match(cell_line_list1, Cell_Line)] <- title1
+    Lineage[match(cell_line_list2, Cell_Line)] <- title2
+    Lineage[match(cell_line_list3, Cell_Line)] <- title3
+    Lineage[match(cell_line_list4, Cell_Line)] <- title4
+    Lineage[match(cell_line_list5, Cell_Line)] <- title5
+    Lineage <- Lineage[OrderToPlot]
+    Cell_Line <- Cell_Line[OrderToPlot]
+    
+    Dependency <- dep_mat[,gene_to_plot]
+    Dependency <- Dependency[OrderToPlot]
+    Scaled_Rank <- rank_mat[,gene_to_plot]
+    Scaled_Rank <- Scaled_Rank[OrderToPlot]
+    Legends <- factor(Lineage, levels = c("Other cancer cell line ", title1, title2, title3, title4, title5))
+    temp <- data.frame(Dependency, Scaled_Rank, Cell_Line, Lineage, Legends) 
+    temp <- temp %>% separate(Cell_Line, into = c("Cell_Line", "Lineage2"), sep = "_", extra = "merge") 
+    
+    set.seed(1)
+    plot_to_save <- ggplot(temp, aes(x=Dependency, y=Scaled_Rank, label=Cell_Line)) + 
+      geom_point(aes(fill=Legends, color=Legends), size = 2, pch=21, stroke = 0.25) + 
+      scale_fill_manual(name = "", values = point_cols) + 
+      scale_color_manual(name = "", values = point_cols_2) +
+      geom_label_repel(data=subset(temp, !grepl("Other", Lineage)), size = 2, force = 2, box.padding = unit(0.3, 'lines'), max.iter = 1e4, segment.color = 'black', nudge_y = 0.1) + 
+      theme_light() + 
+      xlab(paste0(gsub("\\ .*","",gene_to_plot), " dependency score")) + 
+      ylab(paste0(gsub("\\ .*","",gene_to_plot), y_label)) + 
+      scale_y_continuous(breaks=seq(0,1,0.1), limits=c(0,1)) + 
+      theme(axis.text = element_text(size=8), axis.title = element_text(size=10), 
+            legend.justification=c(0,1), legend.position=legend_pos, legend.margin = margin(t = 0, unit='cm'), 
+            legend.spacing = unit(0, unit='cm'), legend.box.margin = margin(t = 0, unit='cm'), 
+            legend.text = element_text(size = 8), title = element_text(size=8), 
+            panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), 
+            panel.border = element_rect(fill = NA, color = "black", linetype = 1), 
+            legend.background = element_rect(fill = NA, color = NA, linetype = 0), legend.key.height=unit(0.6,"line"),
+            legend.key.width=unit(0.6,"line")) + 
+      scale_x_continuous(breaks=seq(round(min(temp$Dependency, na.rm = T)/scale_factor)*scale_factor,round(max(temp$Dependency, na.rm = T)/scale_factor)*scale_factor,scale_factor))
+    print(plot_to_save)
+    
+    plot_to_save2 <- ggplot(temp, aes(x=Dependency, y=Scaled_Rank, label=Cell_Line)) + 
+      geom_point(aes(fill=Legends, color=Legends), size = 2, pch=21, stroke = 0.25) + 
+      scale_fill_manual(name = "", values = point_cols) +
+      scale_color_manual(name = "", values = point_cols_2) +
+      theme_light() + 
+      xlab(paste0(gsub("\\ .*","",gene_to_plot), " dependency score")) + 
+      ylab(paste0(gsub("\\ .*","",gene_to_plot), y_label)) + 
+      scale_y_continuous(breaks=seq(0,1,0.1), limits=c(0,1)) + 
+      theme(axis.text = element_text(size=8), axis.title = element_text(size=10), 
+            legend.justification=c(0,1), legend.position=legend_pos, legend.margin = margin(t = 0, unit='cm'), 
+            legend.spacing = unit(0, unit='cm'), legend.box.margin = margin(t = 0, unit='cm'), 
+            legend.text = element_text(size = 8), title = element_text(size=8), 
+            panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), 
+            panel.border = element_rect(fill = NA, color = "black", linetype = 1), 
+            legend.background = element_rect(fill = NA, color = NA, linetype = 0), legend.key.height=unit(0.6,"line"),
+            legend.key.width=unit(0.6,"line")) + 
+      scale_x_continuous(breaks=seq(round(min(temp$Dependency, na.rm = T)/scale_factor)*scale_factor,round(max(temp$Dependency, na.rm = T)/scale_factor)*scale_factor,scale_factor))
+    print(plot_to_save2)
+    
+    ggsave(filename = paste0(plot_filename, "_label.pdf"), plot = plot_to_save, width = plot_width, height = plot_height, limitsize=FALSE, useDingbats=FALSE)
+    ggsave(filename = paste0(plot_filename, ".pdf"), plot = plot_to_save2, width = plot_width, height = plot_height, limitsize=FALSE, useDingbats=FALSE)
+    
+}
+
+# Gecko
+dep_mat <- t(gecko_gene_effect)
+rank_mat <- t(colRanks(dep_mat))
+rownames(rank_mat) <- rownames(dep_mat)
+colnames(rank_mat) <- colnames(dep_mat)
+rank_mat <- t(rank_mat) / colMaxs(rank_mat, na.rm=T)
+dep_mat <- t(dep_mat)
+
+gene_to_plot <- "TRIM8"
+GenePlot(gene_to_plot, dep_mat = dep_mat, rank_mat = rank_mat, cell_line_list1 = rownames(dep_mat)[!(rownames(dep_mat) %in% Ewing_lines)], cell_line_list2 = EFLI[EFLI %in% rownames(dep_mat)], cell_line_list3 = EERG[EERG %in% rownames(dep_mat)], cell_line_list4 = EFEV[EFEV %in% rownames(dep_mat)], title1 = "Other cancer cell lines", title2 = "Ewing EWS-FLI cell lines", title3 = "Ewing EWS-ERG cell lines", title4 = "Ewing EWS-FEV cell lines", plot_filename = paste0("figures/",gene_to_plot,"_GeCKO_byEWSfusion"))
+
+
+# Avana 20q1 
+dep_mat <- t(gene_effect)
+rank_mat <- t(colRanks(dep_mat))
+rownames(rank_mat) <- rownames(dep_mat)
+colnames(rank_mat) <- colnames(dep_mat)
+rank_mat <- t(rank_mat) / colMaxs(rank_mat, na.rm=T)
+dep_mat <- t(dep_mat)
+
+gene_to_plot <- "TRIM8"
+GenePlot(gene_to_plot, dep_mat = dep_mat, rank_mat = rank_mat, cell_line_list1 = rownames(dep_mat)[!(rownames(dep_mat) %in% Ewing_lines)], cell_line_list2 = EFLI[EFLI %in% rownames(dep_mat)], cell_line_list3 = EERG[EERG %in% rownames(dep_mat)], cell_line_list4 = EFEV[EFEV %in% rownames(dep_mat)], title1 = "Other cancer cell lines", title2 = "Ewing EWS-FLI cell lines", title3 = "Ewing EWS-ERG cell lines", title4 = "Ewing EWS-FEV cell lines", plot_filename = paste0("figures/",gene_to_plot,"_Avana20q1_byEWSfusion"))
+```
+
+## Session Info
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```
+
+```{r include=TRUE}
+as.data.frame(`Dataset Used`) %>% datatable(options=list(scrollX=T))
+```
+

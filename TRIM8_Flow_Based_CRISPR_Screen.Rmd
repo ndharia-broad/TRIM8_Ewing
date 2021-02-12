@@ -1,0 +1,107 @@
+---
+title: "TRIM8 Flow Based CRISPR Screen"
+author: "Neekesh V. Dharia"
+output: html_document
+---
+
+```{r warning=FALSE, message=F}
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(ggthemes)
+library(data.table)
+library(readxl)
+
+source('functions.R')
+
+TableS1 <- readxl::read_xlsx("input_files/Supplementary Table S1.xlsx")
+guide_mapping <- fread("input_files/CP0033_20170705_compat.chip.txt") %>%
+  dplyr::rename(`Construct Barcode` = `Guide Sequence`)
+```
+
+# Flow-based CRISPR screen replicate reproducibility
+
+
+```{r warning=FALSE, message=FALSE, fig.width=5, fig.height=5}
+TableS1 %<>% dplyr::group_by(`Construct Barcode`) %>%
+  dplyr::mutate(mean_pre_sort = (`Rep 1;Pre-sort;Day 7 sort` + `Rep 2;Pre-sort;Day 7 sort`)/2) %>%
+  dplyr::mutate(LFC_Rep1_GFP = `Rep 1;GFP++;Day 7 sort` - mean_pre_sort, 
+                LFC_Rep2_GFP = `Rep 2;GFP++;Day 7 sort` - mean_pre_sort, 
+                LFC_Rep1_mCherry = `Rep 1;mCherry+;Day 7 sort` - mean_pre_sort,
+                LFC_Rep2_mCherry = `Rep 2;mCherry+;Day 7 sort` - mean_pre_sort)
+
+TableS1 <- dplyr::full_join(TableS1 %>% dplyr::select(-`GENE SYMBOL`), guide_mapping, by="Construct Barcode")
+
+TableS1 %<>% dplyr::group_by(`Gene Symbol`) %>%
+  dplyr::summarise(LFC_Rep1_GFP = mean(LFC_Rep1_GFP),
+                   LFC_Rep2_GFP = mean(LFC_Rep2_GFP),
+                   LFC_Rep1_mCherry = mean(LFC_Rep1_mCherry),
+                   LFC_Rep2_mCherry = mean(LFC_Rep2_mCherry))
+
+p <- ggplot(TableS1, aes(x = LFC_Rep1_GFP, y = LFC_Rep2_GFP)) + 
+  geom_point(size=3, pch=20, stroke = 0, color = "black") + 
+  theme_light() + 
+  theme(panel.grid = element_blank(), panel.border = element_blank(), 
+        axis.line = element_line(size=0.5), axis.ticks = element_line(size=0.5, color="black"), 
+        text = element_text(size = 8, color = "black"), 
+        axis.text = element_text(size = 8, color = "black"), 
+        plot.title = element_text(size = 8, color = "black")) + 
+  xlab("Average LFC Rep1") + 
+  ylab("Average LFC Rep2") + 
+  geom_point(data = TableS1[TableS1$`Gene Symbol` == "TRIM8",,drop=F], 
+             aes(x = LFC_Rep1_GFP, y = LFC_Rep2_GFP), color = "red", size = 3,  pch=20, stroke = 0) + 
+  geom_label_repel(data = TableS1[TableS1$`Gene Symbol` == "TRIM8",,drop=F], 
+                   aes(x = LFC_Rep1_GFP, y = LFC_Rep2_GFP, label = `Gene Symbol`), 
+                   size=2, nudge_x = 0.1, nudge_y = 0.1, fill = rgb(1,1,1,0)) + 
+  geom_point(data = TableS1[grepl("NO_CURRENT", TableS1$`Gene Symbol`),,drop=F], 
+             aes(x = LFC_Rep1_GFP, y = LFC_Rep2_GFP), color = "gray", size = 3,  pch=20, stroke = 0) + 
+  ggtitle("GFP Rep Reproducibility") + 
+  scale_x_continuous(breaks = seq(-8,8,2)) + 
+  scale_y_continuous(breaks = seq(-8,8,2))
+
+p
+
+ggsave(plot = p, filename = "figures/TRIM8_LFC_GFP_Flow_Scren_RepReprod.pdf", width = 2.5, height = 2.5, limitsize=FALSE, useDingbats=FALSE)
+
+p <- ggplot(TableS1, aes(x = LFC_Rep1_mCherry, y = LFC_Rep2_mCherry)) + 
+  geom_point(size=3, pch=20, stroke = 0, color = "black") + 
+  theme_light() + 
+  theme(panel.grid = element_blank(), panel.border = element_blank(), 
+        axis.line = element_line(size=0.5), axis.ticks = element_line(size=0.5, color="black"), 
+        text = element_text(size = 8, color = "black"), 
+        axis.text = element_text(size = 8, color = "black"), 
+        plot.title = element_text(size = 8, color = "black")) + 
+  xlab("Average LFC Rep1") + 
+  ylab("Average LFC Rep2") + 
+  geom_point(data = TableS1[TableS1$`Gene Symbol` == "FLI1",,drop=F], 
+             aes(x = LFC_Rep1_mCherry, y = LFC_Rep2_mCherry), color = "blue", size = 3,  pch=20, stroke = 0) + 
+  geom_label_repel(data = TableS1[TableS1$`Gene Symbol` == "FLI1",,drop=F], 
+                   aes(x = LFC_Rep1_mCherry, y = LFC_Rep2_mCherry, label = `Gene Symbol`), 
+                   size=2, nudge_x = -0.5, nudge_y = -1, fill = rgb(1,1,1,0)) + 
+  geom_point(data = TableS1[TableS1$`Gene Symbol` == "EWSR1",,drop=F], 
+             aes(x = LFC_Rep1_mCherry, y = LFC_Rep2_mCherry), color = "purple", size = 3,  pch=20, stroke = 0) + 
+  geom_label_repel(data = TableS1[TableS1$`Gene Symbol` == "EWSR1",,drop=F], 
+                   aes(x = LFC_Rep1_mCherry, y = LFC_Rep2_mCherry, label = `Gene Symbol`), 
+                   size=2, nudge_x = -1.5, nudge_y = -0.5, fill = rgb(1,1,1,0)) + 
+  geom_point(data = TableS1[TableS1$`Gene Symbol` == "TRIM8",,drop=F], 
+             aes(x = LFC_Rep1_mCherry, y = LFC_Rep2_mCherry), color = "red", size = 3,  pch=20, stroke = 0) + 
+  geom_label_repel(data = TableS1[TableS1$`Gene Symbol` == "TRIM8",,drop=F], 
+                   aes(x = LFC_Rep1_mCherry, y = LFC_Rep2_mCherry, label = `Gene Symbol`), 
+                   size=2, nudge_x = -1.5, nudge_y = 0, fill = rgb(1,1,1,0)) + 
+  geom_point(data = TableS1[grepl("NO_CURRENT", TableS1$`Gene Symbol`),,drop=F], 
+             aes(x = LFC_Rep1_mCherry, y = LFC_Rep2_mCherry), color = "gray", size = 3,  pch=20, stroke = 0) + 
+  ggtitle("mCherry Rep Reproducibility") + 
+  scale_x_continuous(breaks = seq(-8,8,2)) + 
+  scale_y_continuous(breaks = seq(-8,8,2))
+
+p
+
+ggsave(plot = p, filename = "figures/TRIM8_LFC_mCherry_Flow_Scren_RepReprod.pdf", width = 2.5, height = 2.5, limitsize=FALSE, useDingbats=FALSE)
+```
+
+
+## Session Info
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```

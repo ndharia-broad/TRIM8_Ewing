@@ -1,0 +1,94 @@
+---
+title: "TRIM8 DepMap Enrichment"
+author: "Neekesh V. Dharia"
+output: html_document
+---
+
+```{r warning=FALSE, message=F}
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(ggthemes)
+library(data.table)
+library(rentrez)
+
+source('functions.R')
+```
+
+```{r warning=FALSE, message=F}
+public_portal_enrichment <- fread("input_files/public-portal-enrichment.csv")
+public_portal_enrichment_Avana_20Q1 <- public_portal_enrichment %>% filter(display_name == "CRISPR (Avana) Public 20Q1")
+```
+
+# TRIM8 enrichment in Ewing across all of DepMap 20q1
+
+```{r warning=FALSE, message=FALSE}
+if(!file.exists("data/pubmed.txt"))
+{
+  public_portal_enrichment_Avana_20Q1_pubmed <- public_portal_enrichment_Avana_20Q1 %>%
+    filter(p_value < 1e-30) %>% 
+    group_by(label, context_name) %>%
+    do(pubmed_search(.$label, .$context_name))
+  colnames(public_portal_enrichment_Avana_20Q1_pubmed)[3] <- "pubmed_results"
+  fwrite(public_portal_enrichment_Avana_20Q1_pubmed, "data/pubmed.txt")
+} else
+{
+  public_portal_enrichment_Avana_20Q1_pubmed <- fread("data/pubmed.txt")
+}
+
+public_portal_enrichment_Avana_20Q1_pubmed %<>% group_by(label, context_name) %>%
+  dplyr::mutate(pubmed_time = unlist(strsplit(pubmed_results, split = ", "))[1],
+                pubmed_terms = unlist(strsplit(pubmed_results, split = ", "))[2],
+                pubmed_results = as.numeric(unlist(strsplit(pubmed_results, split = ", "))[3])) %>%
+  ungroup()
+
+public_portal_enrichment_Avana_20Q1_combined <- left_join(public_portal_enrichment_Avana_20Q1 %>% 
+                                                            dplyr::mutate(index = paste0(label, "_", context_name)),
+                                                          public_portal_enrichment_Avana_20Q1_pubmed %>% 
+                                                            dplyr::mutate(index = paste0(label, "_", context_name)) %>%
+                                                            dplyr::select(index, starts_with("pubmed")),
+                                                          by = "index")
+```
+
+```{r warning=FALSE, message=FALSE, fig.width=6, fig.height=6}
+p <- ggplot(public_portal_enrichment_Avana_20Q1_combined %>% 
+              dplyr::mutate(pubmed_results = ifelse(p_value <1e-60, pubmed_results, NA)) %>%
+              arrange(desc(pubmed_results)), 
+            aes(x=t_statistic, y=-log10(p_value), fill=pubmed_results)) +
+  geom_point(size=4, alpha=0.8, pch=21) +
+  scale_fill_gradientn(colors = c("red", colorRampPalette(c("black", "blue"))(10)), 
+                        values = c(0, seq(1/10, 1, length.out=9)),
+                        limits = c(0, 10),
+                        breaks = seq(0, 10, 1), 
+                        minor_breaks = seq(0, 10, 1),
+                        labels = c(seq(0, 9, 1), ">10"),
+                        oob = scales::squish,
+                        name = "Pubmed hits",
+                        guide = "legend") + 
+  scale_color_gradientn(colors = c("red", colorRampPalette(c("black", "blue"))(10)), 
+                        values = c(0, seq(1/10, 1, length.out=9)),
+                        limits = c(0, 10),
+                        breaks = seq(0, 10, 1), 
+                        minor_breaks = seq(0, 10, 1),
+                        labels = c(seq(0, 9, 1), ">10"),
+                        oob = scales::squish,
+                        name = "Pubmed hits",
+                        guide = "legend") + 
+  geom_text_repel(data = public_portal_enrichment_Avana_20Q1_combined %>% filter(p_value <1e-60, context_name != "plasma_cell"), 
+                   mapping = aes(x=t_statistic, y=-log10(p_value), label=paste0(pubmed_terms, ", ", pubmed_results), 
+                                 fill=NULL, color=pubmed_results),
+                   size = 2, nudge_x = 10, force = 20) + 
+  xlab("T-statistic") + ylab("-log10(p-value)") +
+  theme_Publication() + theme(legend.position = "right", legend.direction = "vertical", legend.key.height=unit(1, "cm"),
+                              legend.text = element_text(size = 8), panel.grid = element_blank()) 
+p
+
+ggsave(p, filename="figures/TRIM8_DepMap_Enrichment_20q1.pdf", width = 6, height = 6)
+```
+
+
+## Session Info
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```

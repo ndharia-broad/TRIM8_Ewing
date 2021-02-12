@@ -1,0 +1,51 @@
+---
+title: "TRIM8 CCLE RNA Expression"
+author: "Neekesh V. Dharia"
+output: html_document
+---
+
+```{r warning=FALSE, message=F}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(ggthemes)
+library(magrittr)
+library(data.table)
+library(DT)
+
+source('load_data.R')
+source('functions.R')
+
+CCLE.expression <- load_gene_expression()
+```
+
+# TRIM8 expression in CCLE 20q1
+
+```{r warning=FALSE, message=F, fig.width=8, fig.height=6}
+for_plot <- left_join(data.frame(CCLE.expression[,"TRIM8 (81603)",drop=F]) %>% dplyr::mutate(DepMap_ID = rownames(.)), mf, by = "DepMap_ID") %>%
+  group_by(Type) %>%
+  dplyr::mutate(n = n()) %>%
+  dplyr::mutate(Type_color = ifelse(Type == "Ewing", "red", "gray"))
+
+p <- ggplot(for_plot %>% filter(n >= 5), aes(x = reorder(Type, TRIM8..81603., FUN = median), y = TRIM8..81603., fill = Type_color)) +
+  geom_jitter(alpha = 0.5, width = 0.1) + 
+  geom_boxplot() + 
+  xlab("Tumor type") + ylab("TRIM8 expression (log2(TPM + 1))") +
+  scale_fill_manual(values = c("gray" = rgb(190/255, 190/255, 190/255, 0.5), "red" = rgb(1, 0, 0, 0.5))) + 
+  scale_color_manual(values = c("gray" = rgb(190/255, 190/255, 190/255, 0.5), "red" = rgb(1, 0, 0, 0.5))) + 
+  theme_Publication() + theme(axis.text.x = element_text(angle = 90, hjust = 1), panel.grid = element_blank(), legend.position = "none") 
+p
+
+ggsave(p, filename = "figures/TRIM8_CCLE_RNA_Expression_20q1.pdf", width = 8, height = 6)
+```
+
+## Session Info
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```
+
+```{r include=TRUE}
+as.data.frame(`Dataset Used`) %>% datatable(options=list(scrollX=T))
+```
+
