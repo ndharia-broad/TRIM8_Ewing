@@ -66,7 +66,7 @@ colnames(context_matrix) <- "Ewing"
 context_matrix[,1] <- 0
 context_matrix[rownames(context_matrix) %in% Ewing_lines,1] <- 1
 
-ttest_Ewing_v_all <- cdsr::run_lm_stats_limma(gene_effect, context_matrix[,1])
+ttest_Ewing_v_all <- run_lm_stats_limma(gene_effect, context_matrix[,1])
 ttest_Ewing_v_all$Gene <- gsub("\\ .*","",ttest_Ewing_v_all$Gene)
 ttest_Ewing_v_all_avana <- ttest_Ewing_v_all
 
